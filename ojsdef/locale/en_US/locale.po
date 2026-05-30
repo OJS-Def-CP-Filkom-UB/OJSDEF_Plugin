@@ -1,0 +1,65 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: OJSDef Plugin 1.0\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "plugins.generic.ojsdef.displayName"
+msgstr "OJSDef Security Scanner"
+
+msgid "plugins.generic.ojsdef.description"
+msgstr "Connects this OJS installation to the OJSDef security platform for internal audit scanning."
+
+msgid "plugins.generic.ojsdef.settings.backendUrl"
+msgstr "OJSDef Backend URL"
+
+msgid "plugins.generic.ojsdef.settings.apiKey"
+msgstr "API Key"
+
+msgid "plugins.generic.ojsdef.settings.targetId"
+msgstr "Target ID"
+
+msgid "plugins.generic.ojsdef.settings.save"
+msgstr "Save"
+
+msgid "plugins.generic.ojsdef.status.connection"
+msgstr "Connection Status"
+
+msgid "plugins.generic.ojsdef.status.connected"
+msgstr "Connected"
+
+msgid "plugins.generic.ojsdef.status.disconnected"
+msgstr "Disconnected"
+
+msgid "plugins.generic.ojsdef.status.directMode"
+msgstr "Direct Mode - Scan starts in under 10 seconds."
+
+msgid "plugins.generic.ojsdef.status.heartbeatMode"
+msgstr "Heartbeat Mode - Scan starts within 5 minutes."
+
+msgid "plugins.generic.ojsdef.status.unknown"
+msgstr "Unknown (not yet detected)"
+
+msgid "plugins.generic.ojsdef.status.firewallWarning"
+msgstr "Plugin is behind a firewall. Backend cannot reach the plugin directly. Scans will still work via heartbeat."
+
+msgid "plugins.generic.ojsdef.status.lastHeartbeat"
+msgstr "Last Heartbeat"
+
+msgid "plugins.generic.ojsdef.testConnection"
+msgstr "Test Connection"
+
+msgid "plugins.generic.ojsdef.settings.setup"
+msgstr "Setup Instructions"
+
+msgid "plugins.generic.ojsdef.settings.setup.description"
+msgstr "Follow these steps to connect this OJS installation to OJSDef:"
+
+msgid "plugins.generic.ojsdef.settings.step1"
+msgstr "Login to OJSDef Dashboard and add this OJS URL as a target."
+
+msgid "plugins.generic.ojsdef.settings.step2"
+msgstr "Copy the API Key and Target ID from the OJSDef dashboard."
+
+msgid "plugins.generic.ojsdef.settings.step3"
+msgstr "Paste both values below and click Save."
