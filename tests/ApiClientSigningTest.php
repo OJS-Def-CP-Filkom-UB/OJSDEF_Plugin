@@ -36,7 +36,7 @@ class ApiClientSigningTest extends TestCase
     public function test_signature_header_starts_with_sha256(): void
     {
         $headers    = $this->client->buildHeaders('{"test":"value"}', time());
-        $sigHeaders = array_values(array_filter($headers, fn($h) => str_starts_with($h, 'X-OJSDef-Signature')));
+        $sigHeaders = array_values(array_filter($headers, fn($h) => strpos($h, 'X-OJSDef-Signature') === 0));
         $this->assertStringContainsString('sha256=', $sigHeaders[0]);
     }
 }

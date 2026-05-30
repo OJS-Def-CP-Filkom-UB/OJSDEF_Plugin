@@ -37,7 +37,7 @@ class OjsdefSettingsForm extends Form
         $this->readUserVars(['backend_url', 'api_key', 'target_id']);
     }
 
-    public function execute(...$functionArgs): mixed
+    public function execute(...$functionArgs)
     {
         $this->plugin->updateSetting(0, 'backend_url',       $this->getData('backend_url'));
         $this->plugin->updateSetting(0, 'api_key',           $this->getData('api_key'));

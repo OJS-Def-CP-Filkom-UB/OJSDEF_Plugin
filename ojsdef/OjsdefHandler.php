@@ -10,15 +10,17 @@ class OjsdefHandler extends Handler
      */
     public function probe(array $args, $request): void
     {
-        $plugin = PluginRegistry::getPlugin('generic', 'ojsdef');
+        $plugin  = PluginRegistry::getPlugin('generic', 'ojsdef');
         $plugin->_requireClasses();
 
-        if (!$this->_verifyHmac($plugin)) {
+        $body    = (string) file_get_contents('php://input');
+        $payload = json_decode($body, true) ?? [];
+
+        if (!$this->_verifyHmacFromBody($plugin, $body)) {
             $this->_json(401, ['error' => 'invalid_signature']);
             return;
         }
 
-        $payload = json_decode(file_get_contents('php://input'), true);
         $plugin->updateSetting(0, 'connection_mode', 'direct');
 
         $this->_json(200, [
@@ -34,15 +36,17 @@ class OjsdefHandler extends Handler
      */
     public function trigger(array $args, $request): void
     {
-        $plugin = PluginRegistry::getPlugin('generic', 'ojsdef');
+        $plugin  = PluginRegistry::getPlugin('generic', 'ojsdef');
         $plugin->_requireClasses();
 
-        if (!$this->_verifyHmac($plugin)) {
+        $body    = (string) file_get_contents('php://input');
+        $payload = json_decode($body, true) ?? [];
+
+        if (!$this->_verifyHmacFromBody($plugin, $body)) {
             $this->_json(401, ['error' => 'invalid_signature']);
             return;
         }
 
-        $payload = json_decode(file_get_contents('php://input'), true);
         $jobId   = $payload['job_id'] ?? '';
         $modules = $payload['scan_modules'] ?? [
             'fingerprint', 'config', 'plugins', 'rbac', 'file_integrity', 'content'
@@ -70,11 +74,14 @@ class OjsdefHandler extends Handler
         }
     }
 
-    private function _verifyHmac($plugin): bool
+    /**
+     * Verifikasi HMAC menggunakan body yang sudah dibaca.
+     * Body dibaca sekali di caller dan di-pass ke sini.
+     */
+    private function _verifyHmacFromBody($plugin, string $body): bool
     {
         $signature = $_SERVER['HTTP_X_OJSDEF_SIGNATURE'] ?? '';
         $timestamp = (int) ($_SERVER['HTTP_X_OJSDEF_TIMESTAMP'] ?? 0);
-        $body      = file_get_contents('php://input');
 
         if (empty($signature) || $timestamp === 0) return false;
 
