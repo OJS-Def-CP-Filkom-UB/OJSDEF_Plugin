@@ -120,6 +120,70 @@ class OjsdefPlugin extends GenericPlugin
     public function getDisplayName() { return __('plugins.generic.ojsdef.displayName'); }
     public function getDescription() { return __('plugins.generic.ojsdef.description'); }
 
-    // manage() dan getActions() diimplementasi di Task 12
-    public function manage($args, $request) { return parent::manage($args, $request); }
+    public function getActions($request, $actionArgs)
+    {
+        $actions = parent::getActions($request, $actionArgs);
+        if (!$this->getEnabled()) return $actions;
+
+        $router = $request->getRouter();
+        import('lib.pkp.classes.linkAction.request.AjaxModal');
+
+        array_unshift($actions, new \LinkAction(
+            'settings',
+            new \AjaxModal(
+                $router->url($request, null, null, 'manage', null,
+                    ['verb' => 'settings', 'plugin' => $this->getName(), 'category' => 'generic']),
+                $this->getDisplayName()
+            ),
+            __('manager.plugins.settings'),
+            null
+        ));
+
+        array_unshift($actions, new \LinkAction(
+            'testConnection',
+            new \RemoteActionConfirmationModal(
+                $request->getSession(),
+                __('plugins.generic.ojsdef.testConnection'),
+                null,
+                $router->url($request, null, null, 'manage', null,
+                    ['verb' => 'testConnection', 'plugin' => $this->getName(), 'category' => 'generic'])
+            ),
+            __('plugins.generic.ojsdef.testConnection'),
+            null
+        ));
+
+        return $actions;
+    }
+
+    public function manage($args, $request)
+    {
+        $verb = $request->getUserVar('verb');
+
+        switch ($verb) {
+            case 'settings':
+                $this->_requireClasses();
+                require_once $this->getPluginPath() . '/classes/OjsdefSettingsForm.php';
+                $form = new OjsdefSettingsForm($this);
+                if ($request->isPost()) {
+                    $form->readInputData();
+                    if ($form->validate()) {
+                        $form->execute();
+                        return new \JSONMessage(true);
+                    }
+                }
+                $form->initData();
+                return new \JSONMessage(true, $form->fetch($request));
+
+            case 'testConnection':
+                $this->_requireClasses();
+                $extra  = $this->_buildHeartbeatExtra();
+                $result = (new ApiClient($this))->sendHeartbeat($extra);
+                return new \JSONMessage($result['code'] === 200, [
+                    'status' => $result['code'] === 200 ? 'ok' : 'error',
+                ]);
+
+            default:
+                return parent::manage($args, $request);
+        }
+    }
 }
