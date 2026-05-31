@@ -79,12 +79,14 @@ class ApiClient
      */
     public function get(string $endpoint): array
     {
+        // Body is empty string for GET — still HMAC-signed so middleware can authenticate
+        $timestamp = time();
         $ch = curl_init($this->backendUrl . $endpoint);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 10,
             CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_HTTPHEADER     => ['X-OJSDef-Target-ID: ' . $this->targetId],
+            CURLOPT_HTTPHEADER     => $this->makeHeaders('', $timestamp),
         ]);
         $response = curl_exec($ch);
         $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
