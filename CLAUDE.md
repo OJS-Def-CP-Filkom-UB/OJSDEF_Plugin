@@ -21,16 +21,35 @@ composer install --ignore-platform-req=ext-mbstring --ignore-platform-req=ext-cu
 php vendor/bin/phpunit
 
 # Build distribusi ZIP (tanpa vendor, tests, docs) — PowerShell:
-Compress-Archive -Path @("ojsdef","ojsdef.php","version.xml") -DestinationPath "ojsdef-plugin-1.0.1.zip" -Force
+# JANGAN gunakan Compress-Archive karena membuat path backslash yang tidak dikenali PHP/Linux.
+# Gunakan .NET ZipFile API agar path menggunakan forward slash:
+Add-Type -AssemblyName System.IO.Compression; Add-Type -AssemblyName System.IO.Compression.FileSystem
+$src = "ojsdef"; $out = "ojsdef-plugin-1.0.1.zip"
+if (Test-Path $out) { Remove-Item $out -Force }
+$zip = [System.IO.Compression.ZipFile]::Open($out, 'Create')
+Get-ChildItem -Path $src -Recurse -File | ForEach-Object {
+    $rel = $_.FullName.Substring((Resolve-Path $src).Path.Length).TrimStart('\').Replace('\','/')
+    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, "ojsdef/$rel")
+}
+$zip.Dispose()
 ```
 
 ## Deployment ke OJS Klien
 
 ### Build distribusi ZIP
 
-```bash
-# PowerShell
-Compress-Archive -Path @("ojsdef","ojsdef.php","version.xml") -DestinationPath "ojsdef-plugin-1.0.1.zip" -Force
+```powershell
+# Jalankan dari direktori OJSDEF-Plugin/
+# Wajib menggunakan .NET ZipFile API — Compress-Archive membuat backslash yang PHP/Linux tolak
+Add-Type -AssemblyName System.IO.Compression; Add-Type -AssemblyName System.IO.Compression.FileSystem
+$src = "ojsdef"; $out = "ojsdef-plugin-1.0.1.zip"
+if (Test-Path $out) { Remove-Item $out -Force }
+$zip = [System.IO.Compression.ZipFile]::Open($out, 'Create')
+Get-ChildItem -Path $src -Recurse -File | ForEach-Object {
+    $rel = $_.FullName.Substring((Resolve-Path $src).Path.Length).TrimStart('\').Replace('\','/')
+    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, "ojsdef/$rel")
+}
+$zip.Dispose()
 ```
 
 ### Instalasi di OJS
@@ -63,7 +82,7 @@ OJSDEF-Plugin/
 ├── ojsdef/
 │   ├── OjsdefPlugin.php           — Main plugin class (extends GenericPlugin)
 │   ├── OjsdefHandler.php          — HTTP handler untuk /probe dan /trigger endpoints
-│   ├── version.xml                — Versi untuk OJS
+│   ├── version.xml                — Versi OJS: wajib ada <class>OjsdefPlugin</class> untuk lazy-load OJS 3.4.x
 │   ├── locale/en_US/locale.po     — String lokalisasi plugin
 │   ├── templates/settingsForm.tpl — Smarty template form settings + status koneksi
 │   └── classes/

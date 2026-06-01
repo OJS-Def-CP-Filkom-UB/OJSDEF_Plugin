@@ -1,13 +1,12 @@
 <?php
 
-import('classes.handler.Handler');
+namespace APP\plugins\generic\ojsdef;
+
+use PKP\handler\Handler;
+use PKP\plugins\PluginRegistry;
 
 class OjsdefHandler extends Handler
 {
-    /**
-     * POST /index.php/index/ojsdef/probe
-     * Dipanggil backend satu kali untuk test reachability.
-     */
     public function probe(array $args, $request): void
     {
         $plugin  = PluginRegistry::getPlugin('generic', 'ojsdef');
@@ -29,11 +28,6 @@ class OjsdefHandler extends Handler
         ]);
     }
 
-    /**
-     * POST /index.php/index/ojsdef/trigger
-     * Dipanggil backend untuk memulai internal scan (Direct Mode).
-     * Respond 202 segera, lalu jalankan scan di background.
-     */
     public function trigger(array $args, $request): void
     {
         $plugin  = PluginRegistry::getPlugin('generic', 'ojsdef');
@@ -57,27 +51,21 @@ class OjsdefHandler extends Handler
             return;
         }
 
-        // Respond 202 dan tutup koneksi ke backend
         $this->_json(202, ['status' => 'accepted', 'job_id' => $jobId]);
         $this->_closeConnection();
 
-        // Scan dijalankan setelah koneksi ditutup
         $startTime    = time();
-        $orchestrator = new ScanOrchestrator($plugin);
+        $orchestrator = new \ScanOrchestrator($plugin);
         $result       = $orchestrator->runAll($jobId, $modules);
         $result['duration_seconds'] = time() - $startTime;
 
-        $apiClient = new ApiClient($plugin);
+        $apiClient = new \ApiClient($plugin);
         if (!$apiClient->sendCallback($jobId, $result)) {
             $result['job_id'] = $jobId;
             $plugin->updateSetting(0, 'pending_callback', json_encode($result));
         }
     }
 
-    /**
-     * Verifikasi HMAC menggunakan body yang sudah dibaca.
-     * Body dibaca sekali di caller dan di-pass ke sini.
-     */
     private function _verifyHmacFromBody($plugin, string $body): bool
     {
         $signature = $_SERVER['HTTP_X_OJSDEF_SIGNATURE'] ?? '';
@@ -85,7 +73,7 @@ class OjsdefHandler extends Handler
 
         if (empty($signature) || $timestamp === 0) return false;
 
-        $signer = new HmacSigner((string) $plugin->getSetting(0, 'api_key'));
+        $signer = new \HmacSigner((string) $plugin->getSetting(0, 'api_key'));
         return $signer->verify($signature, $body, $timestamp);
     }
 
@@ -106,4 +94,8 @@ class OjsdefHandler extends Handler
             flush();
         }
     }
+}
+
+if (!PKP_STRICT_MODE) {
+    class_alias('\APP\plugins\generic\ojsdef\OjsdefHandler', '\OjsdefHandler');
 }

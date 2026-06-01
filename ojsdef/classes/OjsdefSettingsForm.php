@@ -1,10 +1,15 @@
 <?php
 
-import('lib.pkp.classes.form.Form');
+namespace APP\plugins\generic\ojsdef\classes;
+
+use PKP\form\Form;
+use PKP\form\validation\FormValidator;
+use PKP\form\validation\FormValidatorPost;
+use PKP\form\validation\FormValidatorCSRF;
+use APP\template\TemplateManager;
 
 class OjsdefSettingsForm extends Form
 {
-    /** @var object */
     private $plugin;
 
     public function __construct($plugin)
@@ -12,14 +17,14 @@ class OjsdefSettingsForm extends Form
         parent::__construct($plugin->getTemplateResource('settingsForm.tpl'));
         $this->plugin = $plugin;
 
-        $this->addCheck(new \FormValidatorUrl($this, 'backend_url', 'required',
+        $this->addCheck(new FormValidator($this, 'backend_url', 'required',
             'plugins.generic.ojsdef.settings.backendUrl'));
-        $this->addCheck(new \FormValidator($this, 'api_key', 'required',
+        $this->addCheck(new FormValidator($this, 'api_key', 'required',
             'plugins.generic.ojsdef.settings.apiKey'));
-        $this->addCheck(new \FormValidator($this, 'target_id', 'required',
+        $this->addCheck(new FormValidator($this, 'target_id', 'required',
             'plugins.generic.ojsdef.settings.targetId'));
-        $this->addCheck(new \FormValidatorPost($this));
-        $this->addCheck(new \FormValidatorCSRF($this));
+        $this->addCheck(new FormValidatorPost($this));
+        $this->addCheck(new FormValidatorCSRF($this));
     }
 
     public function initData(): void
@@ -30,11 +35,20 @@ class OjsdefSettingsForm extends Form
         $this->setData('connection_mode',  $this->plugin->getSetting(0, 'connection_mode') ?? 'unknown');
         $last = $this->plugin->getSetting(0, 'last_heartbeat_at');
         $this->setData('last_heartbeat_at', $last ? date('Y-m-d H:i:s', (int) $last) : null);
+        parent::initData();
     }
 
     public function readInputData(): void
     {
         $this->readUserVars(['backend_url', 'api_key', 'target_id']);
+        parent::readInputData();
+    }
+
+    public function fetch($request, $template = null, $display = false)
+    {
+        $templateMgr = TemplateManager::getManager($request);
+        $templateMgr->assign('pluginName', $this->plugin->getName());
+        return parent::fetch($request, $template, $display);
     }
 
     public function execute(...$functionArgs)
@@ -42,7 +56,6 @@ class OjsdefSettingsForm extends Form
         $this->plugin->updateSetting(0, 'backend_url',       $this->getData('backend_url'));
         $this->plugin->updateSetting(0, 'api_key',           $this->getData('api_key'));
         $this->plugin->updateSetting(0, 'target_id',         $this->getData('target_id'));
-        // Reset agar probe diulangi dengan settings baru
         $this->plugin->updateSetting(0, 'connection_mode',   'unknown');
         $this->plugin->updateSetting(0, 'last_heartbeat_at', 0);
         return parent::execute(...$functionArgs);

@@ -1,6 +1,14 @@
 <?php
 
-import('lib.pkp.classes.plugins.GenericPlugin');
+namespace APP\plugins\generic\ojsdef;
+
+use PKP\plugins\GenericPlugin;
+use PKP\plugins\Hook;
+use PKP\core\JSONMessage;
+use PKP\linkAction\LinkAction;
+use PKP\linkAction\request\AjaxModal;
+use PKP\linkAction\request\RemoteActionConfirmationModal;
+use APP\plugins\generic\ojsdef\classes\OjsdefSettingsForm;
 
 class OjsdefPlugin extends GenericPlugin
 {
@@ -9,9 +17,7 @@ class OjsdefPlugin extends GenericPlugin
         $success = parent::register($category, $path, $mainContextId);
 
         if ($success && $this->getEnabled()) {
-            // Route /index.php/index/ojsdef/* ke OjsdefHandler
             Hook::add('LoadHandler', [$this, 'callbackLoadHandler']);
-            // Kirim heartbeat setiap 5 menit pada request OJS apapun
             Hook::add('Core::loadBaseData', [$this, 'maybeSendHeartbeat']);
         }
 
@@ -21,7 +27,7 @@ class OjsdefPlugin extends GenericPlugin
     public function callbackLoadHandler(string $hookName, array &$args): bool
     {
         if ($args[0] === 'ojsdef') {
-            define('HANDLER_CLASS', 'OjsdefHandler');
+            define('HANDLER_CLASS', OjsdefHandler::class);
             define('HANDLER_FILE', $this->getPluginPath() . '/OjsdefHandler.php');
             return true;
         }
@@ -38,10 +44,9 @@ class OjsdefPlugin extends GenericPlugin
 
         $this->_requireClasses();
         $extra     = $this->_buildHeartbeatExtra();
-        $apiClient = new ApiClient($this);
+        $apiClient = new \ApiClient($this);
         $result    = $apiClient->sendHeartbeat($extra);
 
-        // Heartbeat Mode: backend minta plugin jalankan scan
         if (!empty($result['body']['scan_requested']) && !empty($result['body']['job_id'])) {
             $this->_runScanFromHeartbeat(
                 $result['body']['job_id'],
@@ -49,7 +54,6 @@ class OjsdefPlugin extends GenericPlugin
             );
         }
 
-        // Retry pending callback jika ada dari scan sebelumnya yang gagal kirim
         $pending = $this->getSetting(0, 'pending_callback');
         if ($pending) {
             $pendingData = json_decode($pending, true);
@@ -62,12 +66,12 @@ class OjsdefPlugin extends GenericPlugin
     private function _runScanFromHeartbeat(string $jobId, array $modules): void
     {
         $this->_requireClasses();
-        $orchestrator = new ScanOrchestrator($this);
+        $orchestrator = new \ScanOrchestrator($this);
         $startTime    = time();
         $result       = $orchestrator->runAll($jobId, $modules);
         $result['duration_seconds'] = time() - $startTime;
 
-        $apiClient = new ApiClient($this);
+        $apiClient = new \ApiClient($this);
         if (!$apiClient->sendCallback($jobId, $result)) {
             $result['job_id'] = $jobId;
             $this->updateSetting(0, 'pending_callback', json_encode($result));
@@ -93,8 +97,8 @@ class OjsdefPlugin extends GenericPlugin
 
     private function _detectBaseUrl(): string
     {
-        if (class_exists('Config')) {
-            $baseUrl = Config::getVar('general', 'base_url', '');
+        if (class_exists('\Config')) {
+            $baseUrl = \Config::getVar('general', 'base_url', '');
             if ($baseUrl) return rtrim($baseUrl, '/');
         }
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -126,11 +130,10 @@ class OjsdefPlugin extends GenericPlugin
         if (!$this->getEnabled()) return $actions;
 
         $router = $request->getRouter();
-        import('lib.pkp.classes.linkAction.request.AjaxModal');
 
-        array_unshift($actions, new \LinkAction(
+        array_unshift($actions, new LinkAction(
             'settings',
-            new \AjaxModal(
+            new AjaxModal(
                 $router->url($request, null, null, 'manage', null,
                     ['verb' => 'settings', 'plugin' => $this->getName(), 'category' => 'generic']),
                 $this->getDisplayName()
@@ -139,9 +142,9 @@ class OjsdefPlugin extends GenericPlugin
             null
         ));
 
-        array_unshift($actions, new \LinkAction(
+        array_unshift($actions, new LinkAction(
             'testConnection',
-            new \RemoteActionConfirmationModal(
+            new RemoteActionConfirmationModal(
                 $request->getSession(),
                 __('plugins.generic.ojsdef.testConnection'),
                 null,
@@ -161,24 +164,24 @@ class OjsdefPlugin extends GenericPlugin
 
         switch ($verb) {
             case 'settings':
-                $this->_requireClasses();
                 require_once $this->getPluginPath() . '/classes/OjsdefSettingsForm.php';
                 $form = new OjsdefSettingsForm($this);
-                if ($request->isPost()) {
-                    $form->readInputData();
-                    if ($form->validate()) {
-                        $form->execute();
-                        return new \JSONMessage(true);
-                    }
+                if (!$request->getUserVar('save')) {
+                    $form->initData();
+                    return new JSONMessage(true, $form->fetch($request));
                 }
-                $form->initData();
-                return new \JSONMessage(true, $form->fetch($request));
+                $form->readInputData();
+                if ($form->validate()) {
+                    $form->execute();
+                    return new JSONMessage(true);
+                }
+                return new JSONMessage(false);
 
             case 'testConnection':
                 $this->_requireClasses();
                 $extra  = $this->_buildHeartbeatExtra();
-                $result = (new ApiClient($this))->sendHeartbeat($extra);
-                return new \JSONMessage($result['code'] === 200, [
+                $result = (new \ApiClient($this))->sendHeartbeat($extra);
+                return new JSONMessage($result['code'] === 200, [
                     'status' => $result['code'] === 200 ? 'ok' : 'error',
                 ]);
 
@@ -186,4 +189,8 @@ class OjsdefPlugin extends GenericPlugin
                 return parent::manage($args, $request);
         }
     }
+}
+
+if (!PKP_STRICT_MODE) {
+    class_alias('\APP\plugins\generic\ojsdef\OjsdefPlugin', '\OjsdefPlugin');
 }
