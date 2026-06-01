@@ -24,6 +24,34 @@ php vendor/bin/phpunit
 Compress-Archive -Path @("ojsdef","ojsdef.php","version.xml") -DestinationPath "ojsdef-plugin-1.0.1.zip" -Force
 ```
 
+## Deployment ke OJS Klien
+
+### Build distribusi ZIP
+
+```bash
+# PowerShell
+Compress-Archive -Path @("ojsdef","ojsdef.php","version.xml") -DestinationPath "ojsdef-plugin-1.0.1.zip" -Force
+```
+
+### Instalasi di OJS
+
+1. Login ke OJS admin panel → **Website Settings** → **Plugins** → **Upload New Plugin**
+2. Upload file `ojsdef-plugin-1.0.1.zip`
+3. Aktifkan plugin di daftar **Generic Plugins**
+4. Buka **Settings** → **OJSDef Security Scanner**:
+   - **Backend URL**: URL backend OJSDef (contoh: `https://api.ojsdef.example.com`)
+   - **API Key**: Salin dari dashboard OJSDef → Target → Plugin Guide
+   - **Target ID**: UUID target dari dashboard OJSDef
+
+### Verifikasi Instalasi
+
+Setelah mengisi settings, plugin akan otomatis mengirim heartbeat dalam ≤5 menit.
+Cek status di dashboard OJSDef → Target detail → **Status Plugin**.
+
+### OJS Testing di VPS
+
+Gunakan `docs/panduan-vps-ojs-docker-ssl-direct.md` untuk setup OJS testing di VPS dengan Docker.
+
 ## Directory Structure
 
 ```

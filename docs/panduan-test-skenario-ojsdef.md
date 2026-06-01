@@ -39,6 +39,21 @@
   - [A-2 Cookie Tanpa Secure Flag](#a-2-cookie-tanpa-secure-flag--eksternal)
   - [A-3 OAI Endpoint Terbuka](#a-3-oai-endpoint-terbuka--eksternal)
   - [A-4 Banyak Plugin Aktif](#a-4-banyak-plugin-aktif--internal)
+- [Skenario 4: Verifikasi Domain (File + DNS Method)](#skenario-4-verifikasi-domain-file--dns-method)
+  - [Test Case 4.1 — File Method](#test-case-41--file-method)
+  - [Test Case 4.2 — DNS Method](#test-case-42--dns-method)
+  - [Test Case 4.3 — Token Mismatch](#test-case-43--token-mismatch)
+- [Skenario 5: Plugin Status Display](#skenario-5-plugin-status-display)
+  - [Test Case 5.1 — Status Terhubung](#test-case-51--status-terhubung)
+  - [Test Case 5.2 — Status Tidak Terhubung](#test-case-52--status-tidak-terhubung)
+  - [Test Case 5.3 — Status Belum Terhubung](#test-case-53--status-belum-terhubung)
+- [Skenario 6: Audit Log (saas_admin only)](#skenario-6-audit-log-saas_admin-only)
+  - [Test Case 6.1 — Login tercatat](#test-case-61--login-tercatat)
+  - [Test Case 6.2 — Filter aksi](#test-case-62--filter-aksi)
+  - [Test Case 6.3 — RBAC guard](#test-case-63--rbac-guard)
+- [Skenario 7: False Positive di Laporan](#skenario-7-false-positive-di-laporan)
+  - [Test Case 7.1 — Mark sebagai false positive](#test-case-71--mark-sebagai-false-positive)
+  - [Test Case 7.2 — Export laporan dengan FP](#test-case-72--export-laporan-dengan-fp)
 - [Skenario Baseline — Konfigurasi Bersih](#skenario-baseline--konfigurasi-bersih)
 - [Cara Menjalankan Scan OJSDef](#cara-menjalankan-scan-ojsdef)
 - [Checklist Verifikasi Hasil](#checklist-verifikasi-hasil)
@@ -1007,6 +1022,260 @@ docker exec ojs_app grep -E 'display_errors|show_stacktrace' \
 | Inactive high-priv | 0 |
 | File integrity | Semua match |
 | Content injection | Tidak ada |
+
+---
+
+## Skenario 4: Verifikasi Domain (File + DNS Method)
+
+### Test Case 4.1 — File Method
+
+**Pre-condition:** Target ditambah di dashboard, belum diverifikasi
+
+**Steps:**
+1. Login ke OJSDef Dashboard → Target detail → **Verify Domain**
+2. Copy token verification yang digenerate, misal: `abc123def456`
+3. Di VPS, buat file verification:
+   ```bash
+   docker exec ojs_app sh -c \
+       "mkdir -p /var/www/html/.well-known && \
+        echo 'ojsdef-verification=abc123def456' > \
+        /var/www/html/.well-known/ojsdef-verify-abc123def456.txt"
+   ```
+4. Verifikasi file dapat diakses:
+   ```bash
+   curl -sk https://ojs.contoh.ac.id/.well-known/ojsdef-verify-abc123def456.txt
+   # Output: ojsdef-verification=abc123def456
+   ```
+5. Di dashboard → klik tombol **Verify**
+
+**Expected Result:**
+- Dashboard menampilkan instruksi lengkap dengan copy button untuk kedua nilai
+- Setelah klik Verify → request succeed dengan response 200
+- Dashboard redirect otomatis ke **Plugin Installation Guide**
+- Status target berubah menjadi **Verified**
+
+---
+
+### Test Case 4.2 — DNS Method
+
+**Pre-condition:** Target ditambah, belum diverifikasi
+
+**Steps:**
+1. Login ke OJSDef Dashboard → Target detail → **Verify Domain**
+2. Pilih metode **DNS Verification**
+3. Copy token, misal: `xyz789`
+4. Login ke Cloudflare DNS console:
+   - Add TXT record
+   - Name: `_ojsdef-verify.ojs.contoh.ac.id`
+   - Value: `ojsdef-verification=xyz789`
+5. Tunggu propagasi DNS (5-30 menit):
+   ```bash
+   dig _ojsdef-verify.ojs.contoh.ac.id TXT +short
+   # Harus muncul: "ojsdef-verification=xyz789"
+   ```
+6. Di dashboard → klik **Verify**
+
+**Expected Result:**
+- Sistem query DNS TXT record
+- Record found dengan value cocok
+- Verifikasi succeed → redirect ke Plugin Guide
+- Status target → **Verified**
+
+---
+
+### Test Case 4.3 — Token Mismatch
+
+**Pre-condition:** Verification dialog terbuka, token siap
+
+**Steps:**
+1. Buat file verification tapi dengan konten salah:
+   ```bash
+   docker exec ojs_app sh -c \
+       "echo 'ojsdef-verification=WRONG_TOKEN' > \
+        /var/www/html/.well-known/ojsdef-verify-abc123def456.txt"
+   ```
+2. Di dashboard → klik **Verify**
+
+**Expected Result:**
+- Request dikirim, file ditemukan tapi content tidak match
+- Error message tampil: "Verification failed: token mismatch"
+- Tetap di halaman verifikasi (tidak redirect)
+- User bisa retry atau pilih metode lain
+
+---
+
+## Skenario 5: Plugin Status Display
+
+### Test Case 5.1 — Status Terhubung
+
+**Pre-condition:**
+- Plugin terinstall dan terkonfigurasi dengan API Key valid
+- Heartbeat sudah berjalan setidaknya 1 kali
+
+**Steps:**
+1. Login ke OJSDef Dashboard → Target detail
+2. Scroll ke **Plugin Status** card
+
+**Expected Result:**
+- Badge hijau dengan label **"Terhubung"**
+- Mode yang terdeteksi: **"Direct Mode"** atau **"Heartbeat Mode"**
+- Timestamp **"Terakhir aktif: HH:MM (just now)"**
+- Info section menampilkan: OJS version, PHP version, plugin version
+
+---
+
+### Test Case 5.2 — Status Tidak Terhubung
+
+**Pre-condition:**
+- Plugin terinstall tapi API Key salah atau Backend URL tidak valid
+- Sudah menunggu > 10 menit
+
+**Steps:**
+1. Login OJS → Plugins → OJSDef Settings → ubah API Key menjadi salah
+2. Tunggu 10 menit
+3. Dashboard → Target detail
+
+**Expected Result:**
+- Badge kuning dengan label **"Tidak Terhubung"**
+- Collapsible section **"Troubleshoot"** muncul dengan:
+  - Checklist: "API Key valid?", "Backend URL reachable?", "Firewall blocked?"
+  - Tombol **"Perbaharui Konfigurasi"** → direct ke plugin settings
+- Last heartbeat timestamp masih menampilkan, tapi dengan label "(belum terhubung)"
+
+---
+
+### Test Case 5.3 — Status Belum Terhubung
+
+**Pre-condition:**
+- Target ditambah, plugin belum diinstall
+
+**Steps:**
+1. Dashboard → Target detail yang baru ditambah
+2. Scroll ke **Plugin Status** section
+
+**Expected Result:**
+- Badge abu-abu dengan label **"Belum Terhubung"**
+- Tombol prominent **"Panduan Instalasi Plugin"** → link ke panduan setup
+- Info: "Plugin belum terdeteksi. Ikuti panduan instalasi di bawah."
+- Section **"Instalasi Plugin"** auto-expand dengan instruksi step-by-step
+
+---
+
+## Skenario 6: Audit Log (saas_admin only)
+
+### Test Case 6.1 — Login tercatat
+
+**Pre-condition:**
+- Audit logging feature implemented
+- Login sebagai `admin_ojs`
+
+**Steps:**
+1. Logout dari OJS
+2. Login sebagai `admin_ojs` dengan password
+3. Login ke OJSDef Dashboard sebagai `saas_admin`
+4. Navigasi ke **Settings** → **Audit Logs**
+
+**Expected Result:**
+- Daftar audit records tampil
+- Record terbaru untuk `user.login`: 
+  - Email: `admin_ojs@...`
+  - Aksi: `user.login`
+  - Timestamp: kurang lebih sama dengan login OJS
+  - IP Address: source IP koneksi
+
+---
+
+### Test Case 6.2 — Filter aksi
+
+**Pre-condition:**
+- Minimal 5 audit records dengan berbagai tipe aksi
+
+**Steps:**
+1. Dashboard → **Settings** → **Audit Logs**
+2. Klik filter dropdown **"Aksi"**
+3. Pilih **"Target Created"** (atau aksi apapun yang ada)
+4. Tekan Apply
+
+**Expected Result:**
+- Hanya tampilkan records dengan aksi terpilih
+- Count indicator berubah
+- Record list refresh tanpa full page reload
+
+---
+
+### Test Case 6.3 — RBAC guard
+
+**Pre-condition:**
+- User dengan role `admin_ojs` atau `viewer` sudah login
+
+**Steps:**
+1. Login sebagai `admin_ojs`
+2. Akses langsung URL: `https://ojsdef.example.com/audit-logs`
+
+**Expected Result:**
+- Akses ditolak (HTTP 403 atau redirect ke dashboard)
+- Pesan error: "Akses Ditolak. Hanya platform admin yang dapat melihat audit log."
+- Redirect ke `/dashboard` setelah 3 detik
+
+---
+
+## Skenario 7: False Positive di Laporan
+
+### Test Case 7.1 — Mark sebagai false positive
+
+**Pre-condition:**
+- Scan selesai dengan minimal 1 finding
+- Finding ditampilkan di report detail
+
+**Steps:**
+1. Dashboard → **Reports** → pilih report terbaru
+2. Di findings list, cari finding apapun
+3. Klik toggle **"Tandai sebagai False Positive"** (checkbox/toggle)
+4. Confirm di dialog yang muncul
+
+**Expected Result:**
+- Toggle berubah status (checked/unchecked sesuai aksi)
+- Badge **"Positif Palsu"** muncul di finding
+- Opacity finding berkurang (visual indication bahwa ini FP)
+- Risk score di header report **recalculate otomatis**:
+  - `findings_summary.total_risk` berkurang
+  - `findings_summary.critical_count` berkurang jika finding itu critical
+- Tombol **"Undo"** muncul jika perlu revert
+
+---
+
+### Test Case 7.2 — Export laporan dengan FP
+
+**Pre-condition:**
+- Report sudah ada dengan minimal 1 finding marked as FP
+
+**Steps:**
+1. Dashboard → **Reports** → pilih report
+2. Klik **"Export"** → **"JSON"**
+3. Download file JSON
+
+**Expected Result:**
+- JSON response include field `false_positive_label` untuk setiap finding yang di-mark FP
+- Contoh struktur:
+  ```json
+  {
+    "findings": [
+      {
+        "id": "...",
+        "severity": "high",
+        "false_positive_label": "False Positive",
+        "description": "..."
+      }
+    ],
+    "findings_summary": {
+      "total": 5,
+      "false_positives": 1,
+      "actual_findings": 4,
+      "total_risk": 34.5
+    }
+  }
+  ```
+- File dapat di-open di text editor tanpa corruption
 
 ---
 

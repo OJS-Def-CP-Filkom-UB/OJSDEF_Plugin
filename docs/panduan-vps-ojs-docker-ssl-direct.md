@@ -28,7 +28,7 @@
 9. [Setup Auto-Renewal SSL](#9-setup-auto-renewal-ssl)
 10. [Install Plugin OJSDef](#10-install-plugin-ojsdef)
 11. [Konfigurasi Plugin OJSDef](#11-konfigurasi-plugin-ojsdef)
-12. [Verifikasi Koneksi](#12-verifikasi-koneksi)
+12. [Verifikasi Domain OJS di Dashboard](#12-verifikasi-domain-ojs-di-dashboard)
 13. [Manajemen Container (Restart yang Aman)](#13-manajemen-container-restart-yang-aman)
 14. [Troubleshooting](#14-troubleshooting)
 
@@ -655,19 +655,70 @@ Aktifkan di OJS: **Website Settings** → **Plugins** → **Generic Plugins**.
 ### 11.2 Isi Settings plugin OJS
 
 1. **Website Settings** → **Plugins** → **Generic Plugins** → **OJSDef Security Scanner** → **Settings**
-2. Isi ketiga field → **Save** → **Test Connection**
+2. Isi ketiga field:
+   - **Backend URL**: URL backend OJSDef production (contoh: `https://api.ojsdef.example.com`)
+   - **API Key**: Salin dari dashboard OJSDef → pilih target → Plugin Guide
+   - **Target ID**: Salin dari dashboard OJSDef → pilih target → Plugin Guide
+3. Klik **Save** → **Test Connection**
+
+Jika test berhasil, connection status akan menampilkan **"Connected — Direct Mode"** atau **"Connected — Heartbeat Mode"** (tergantung reachability plugin dari backend).
+
+### 11.3 Troubleshoot koneksi gagal
+
+Jika status tetap **"Disconnected"** setelah 10 menit:
+
+1. **Pastikan OJS dapat akses backend:**
+   ```bash
+   docker exec ojs_app curl -vI https://api.ojsdef.example.com/plugin/v1/heartbeat
+   # Harus dapat reach (jangan timeout/connection refused)
+   ```
+
+2. **Cek log plugin untuk debug:**
+   - Di halaman **Settings** OJSDef → tampilkan debug log (jika tersedia)
+   - Atau cek container log: `docker logs ojs_app | grep ojsdef`
+
+3. **Re-enter API Key** (mungkin salah copy):
+   - Pastikan tidak ada leading/trailing whitespace
+   - Copy ulang dari dashboard OJSDef
 
 ---
 
-## 12. Verifikasi Koneksi
+## 12. Verifikasi Domain OJS di Dashboard
 
-| Connection Status | Artinya |
-|------------------|---------|
-| **Connected — Direct Mode** | Backend dapat reach plugin langsung. Scan mulai <10 detik. |
-| **Connected — Heartbeat Mode** | Plugin di balik firewall. Scan mulai <5 menit via heartbeat. |
-| **Disconnected** | Cek API Key, Backend URL, Target ID. |
+Sebelum scan bisa dijalankan, domain OJS harus diverifikasi di dashboard OJSDef:
 
-Jalankan scan dari OJSDef Dashboard: pilih target → **Run Scan** → pilih tipe.
+### 12.1 Buka halaman verifikasi
+
+1. Dashboard OJSDef → **Targets** → pilih target OJS → **Verify Domain**
+
+### 12.2 Pilih metode verifikasi
+
+**Metode 1: File Verification** (Direkomendasikan)
+1. Dashboard akan generate token verification, misal: `abc123def456`
+2. Buat file di OJS: `/.well-known/ojsdef-verify-abc123def456.txt`
+3. Isi file dengan: `ojsdef-verification=abc123def456`
+4. Akses dari browser: `https://ojs.contoh.ac.id/.well-known/ojsdef-verify-abc123def456.txt` → harus muncul isi file
+5. Di dashboard → klik **Verify** → sistem akan check file → jika cocok, status berubah **Verified**
+
+Implementasi di container OJS:
+```bash
+docker exec ojs_app sh -c \
+    "mkdir -p /var/www/html/.well-known && \
+     echo 'ojsdef-verification=abc123def456' > \
+     /var/www/html/.well-known/ojsdef-verify-abc123def456.txt"
+```
+
+**Metode 2: DNS Verification** (Alternatif)
+1. Dashboard akan generate token, misal: `xyz789`
+2. Tambahkan DNS TXT record di provider (Cloudflare, dll):
+   - Name: `_ojsdef-verify.ojs.contoh.ac.id`
+   - Value: `ojsdef-verification=xyz789`
+3. Tunggu propagasi DNS (5-30 menit)
+4. Di dashboard → klik **Verify** → sistem akan query DNS → jika ada, status **Verified**
+
+### 12.3 Setelah verifikasi berhasil
+
+Dashboard otomatis redirect ke **Plugin Installation Guide** dengan instruksi lengkap dan copy-button untuk API Key dan Target ID.
 
 ---
 
@@ -703,6 +754,8 @@ docker compose up -d --force-recreate ojs
 ---
 
 ## 14. Troubleshooting
+
+### Plugin OJSDef di bagian sebelumnya sudah tercakup di Seksi 11.3
 
 ### Container tidak naik
 
