@@ -8,6 +8,8 @@ use PKP\core\JSONMessage;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\linkAction\request\RemoteActionConfirmationModal;
+use PKP\notification\NotificationManager;
+use PKP\notification\PKPNotification;
 use APP\plugins\generic\ojsdef\classes\OjsdefSettingsForm;
 
 class OjsdefPlugin extends GenericPlugin
@@ -18,7 +20,7 @@ class OjsdefPlugin extends GenericPlugin
 
         if ($success && $this->getEnabled()) {
             Hook::add('LoadHandler', [$this, 'callbackLoadHandler']);
-            Hook::add('Core::loadBaseData', [$this, 'maybeSendHeartbeat']);
+            Hook::add('TemplateManager::display', [$this, 'maybeSendHeartbeat']);
         }
 
         return $success;
@@ -34,10 +36,10 @@ class OjsdefPlugin extends GenericPlugin
         return false;
     }
 
-    public function maybeSendHeartbeat(string $hookName, array $args): void
+    public function maybeSendHeartbeat(string $hookName, array $args): bool
     {
         $lastHeartbeat = (int) $this->getSetting(0, 'last_heartbeat_at');
-        if ((time() - $lastHeartbeat) < 300) return;
+        if ((time() - $lastHeartbeat) < 300) return false;
 
         $this->updateSetting(0, 'last_heartbeat_at', time());
         ignore_user_abort(true);
@@ -61,6 +63,8 @@ class OjsdefPlugin extends GenericPlugin
                 $this->updateSetting(0, 'pending_callback', null);
             }
         }
+
+        return false;
     }
 
     private function _runScanFromHeartbeat(string $jobId, array $modules): void
@@ -179,11 +183,27 @@ class OjsdefPlugin extends GenericPlugin
 
             case 'testConnection':
                 $this->_requireClasses();
-                $extra  = $this->_buildHeartbeatExtra();
-                $result = (new \ApiClient($this))->sendHeartbeat($extra);
-                return new JSONMessage($result['code'] === 200, [
-                    'status' => $result['code'] === 200 ? 'ok' : 'error',
-                ]);
+                $extra   = $this->_buildHeartbeatExtra();
+                $result  = (new \ApiClient($this))->sendHeartbeat($extra);
+                $success = ($result['code'] === 200);
+
+                if ($success) {
+                    $message   = __('plugins.generic.ojsdef.testConnection.success');
+                    $notifType = PKPNotification::NOTIFICATION_TYPE_SUCCESS;
+                } else {
+                    $detail    = !empty($result['error']) ? $result['error'] : 'HTTP ' . $result['code'];
+                    $message   = __('plugins.generic.ojsdef.testConnection.failed') . ' [' . $detail . ']';
+                    $notifType = PKPNotification::NOTIFICATION_TYPE_ERROR;
+                }
+
+                $user = $request->getUser();
+                $notifMgr = new NotificationManager();
+                $notifMgr->createTrivialNotification(
+                    $user->getId(),
+                    $notifType,
+                    ['contents' => $message]
+                );
+                return new JSONMessage($success);
 
             default:
                 return parent::manage($args, $request);
