@@ -26,8 +26,24 @@ class ConfigScanner
             'smtp_password_set'     => !empty($this->_cfg('email',    'smtp_password', '')),
             'db_driver'             => (string) $this->_cfg('database', 'driver',      ''),
             'db_host'               => (string) $this->_cfg('database', 'host',        ''),
-            'db_password_empty'     =>  empty($this->_cfg('database', 'password',      '')),
+            'db_password_empty'     => $this->_isDbPasswordEmpty(),
         ];
+    }
+
+    private function _isDbPasswordEmpty(): bool
+    {
+        $cfgVal = (string) $this->_cfg('database', 'password', '');
+        if (!empty($cfgVal)) return false;
+
+        $candidates = [
+            'OJS_DB_PASSWORD', 'DB_PASSWORD', 'DATABASE_PASSWORD',
+            'MYSQL_PASSWORD', 'POSTGRES_PASSWORD', 'PGPASSWORD',
+        ];
+        foreach ($candidates as $name) {
+            $val = getenv($name);
+            if ($val !== false && $val !== '') return false;
+        }
+        return true;
     }
 
     private function _cfg(string $section, string $key, $default)
