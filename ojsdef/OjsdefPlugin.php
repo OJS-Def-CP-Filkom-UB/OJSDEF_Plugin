@@ -8,8 +8,6 @@ use PKP\core\JSONMessage;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\linkAction\request\RemoteActionConfirmationModal;
-use PKP\notification\NotificationManager;
-use PKP\notification\PKPNotification;
 use APP\plugins\generic\ojsdef\classes\OjsdefSettingsForm;
 
 class OjsdefPlugin extends GenericPlugin
@@ -69,6 +67,8 @@ class OjsdefPlugin extends GenericPlugin
 
     private function _runScanFromHeartbeat(string $jobId, array $modules): void
     {
+        @set_time_limit(0);
+        ignore_user_abort(true);
         $this->_requireClasses();
         $orchestrator = new \ScanOrchestrator($this);
         $startTime    = time();
@@ -183,27 +183,17 @@ class OjsdefPlugin extends GenericPlugin
 
             case 'testConnection':
                 $this->_requireClasses();
-                $extra   = $this->_buildHeartbeatExtra();
-                $result  = (new \ApiClient($this))->sendHeartbeat($extra);
-                $success = ($result['code'] === 200);
+                $extra  = $this->_buildHeartbeatExtra();
+                $result = (new \ApiClient($this))->sendHeartbeat($extra);
 
-                if ($success) {
-                    $message   = __('plugins.generic.ojsdef.testConnection.success');
-                    $notifType = PKPNotification::NOTIFICATION_TYPE_SUCCESS;
-                } else {
-                    $detail    = !empty($result['error']) ? $result['error'] : 'HTTP ' . $result['code'];
-                    $message   = __('plugins.generic.ojsdef.testConnection.failed') . ' [' . $detail . ']';
-                    $notifType = PKPNotification::NOTIFICATION_TYPE_ERROR;
+                if ($result['code'] === 200) {
+                    return new JSONMessage(true);
                 }
 
-                $user = $request->getUser();
-                $notifMgr = new NotificationManager();
-                $notifMgr->createTrivialNotification(
-                    $user->getId(),
-                    $notifType,
-                    ['contents' => $message]
-                );
-                return new JSONMessage($success);
+                $detail  = !empty($result['error']) ? $result['error'] : 'HTTP ' . $result['code'];
+                $message = __('plugins.generic.ojsdef.testConnection.failed')
+                           . ' — ' . htmlspecialchars($detail);
+                return new JSONMessage(false, $message);
 
             default:
                 return parent::manage($args, $request);
