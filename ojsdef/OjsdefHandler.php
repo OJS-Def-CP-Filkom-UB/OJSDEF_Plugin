@@ -7,9 +7,22 @@ use PKP\plugins\PluginRegistry;
 
 class OjsdefHandler extends Handler
 {
+    /**
+     * Endpoint publik probe/trigger — autentikasi sesungguhnya via HMAC,
+     * bukan sesi login OJS. Izinkan tanpa role assignment.
+     */
+    public function authorize($request, &$args, $roleAssignments)
+    {
+        return true;
+    }
+
     public function probe(array $args, $request): void
     {
-        $plugin  = PluginRegistry::getPlugin('generic', 'ojsdef');
+        $plugin = PluginRegistry::getPlugin('generic', 'ojsdef');
+        if (!$plugin) {
+            $this->_json(503, ['error' => 'plugin_inactive']);
+            return;
+        }
         $plugin->_requireClasses();
 
         $body    = (string) file_get_contents('php://input');
@@ -30,7 +43,11 @@ class OjsdefHandler extends Handler
 
     public function trigger(array $args, $request): void
     {
-        $plugin  = PluginRegistry::getPlugin('generic', 'ojsdef');
+        $plugin = PluginRegistry::getPlugin('generic', 'ojsdef');
+        if (!$plugin) {
+            $this->_json(503, ['error' => 'plugin_inactive']);
+            return;
+        }
         $plugin->_requireClasses();
 
         $body    = (string) file_get_contents('php://input');
