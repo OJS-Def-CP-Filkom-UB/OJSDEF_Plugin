@@ -68,11 +68,18 @@ class ContentInjectionDetector
                     'detections' => [], 'error' => $e->getMessage()];
         }
 
-        $affectedIds = array_unique(array_column($detections, 'submission_id'));
+        // Gabungkan dengan hasil scan settings fields
+        $detections = array_merge($detections, $this->_scanContextSettings());
+
+        // affected_count: unik per lokasi (submission_id atau settings field)
+        $affectedLocations = array_unique(array_map(
+            function ($d) { return $d['submission_id'] ?? $d['field']; },
+            $detections
+        ));
 
         return [
             'total_scanned'  => $totalScanned,
-            'affected_count' => count($affectedIds),
+            'affected_count' => count($affectedLocations),
             'detections'     => $detections,
         ];
     }
@@ -127,5 +134,51 @@ class ContentInjectionDetector
         $value = $submission->$method();
         if (is_array($value)) return implode(' ', array_values($value));
         return (string) $value;
+    }
+
+    private function _scanContextSettings(): array
+    {
+        $detections = [];
+        if (!class_exists('DAORegistry')) return $detections;
+
+        try {
+            $journalDao = \DAORegistry::getDAO('JournalDAO');
+            if (!$journalDao) return $detections;
+
+            $journals = $journalDao->getAll();
+            while ($journal = $journals->next()) {
+                // OJS 3.3.x/3.4.x compatible — dua nama key per field untuk fallback versi
+                $fieldsToScan = [
+                    'description'       => 'journal.about',
+                    'pageFooter'        => 'journal.footer',      // OJS 3.4.x key
+                    'footer'            => 'journal.footer',      // OJS 3.3.x fallback
+                    'authorInformation' => 'journal.for_authors', // OJS 3.3.x key
+                    'forAuthors'        => 'journal.for_authors', // OJS 3.4.x key
+                ];
+                $scannedLabels = [];
+
+                foreach ($fieldsToScan as $dataKey => $label) {
+                    if (in_array($label, $scannedLabels, true)) continue; // cegah duplikat
+                    $value = $journal->getLocalizedData($dataKey);
+                    if (empty($value)) continue;
+
+                    $scannedLabels[] = $label;
+                    foreach ($this->patterns as $patternName => $regex) {
+                        if (preg_match($regex, $value, $matches)) {
+                            $detections[] = [
+                                'submission_id' => null,
+                                'field'         => $label,
+                                'pattern'       => $patternName,
+                                'excerpt'       => substr($matches[0], 0, 100),
+                            ];
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // silent — settings scan gagal tidak hentikan modul lain
+        }
+
+        return $detections;
     }
 }
