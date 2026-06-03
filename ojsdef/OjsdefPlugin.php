@@ -24,11 +24,13 @@ class OjsdefPlugin extends GenericPlugin
         return $success;
     }
 
-    public function callbackLoadHandler(string $hookName, array &$args): bool
+    public function callbackLoadHandler(string $hookName, array $args): bool
     {
-        if ($args[0] === 'ojsdef') {
-            define('HANDLER_CLASS', OjsdefHandler::class);
-            define('HANDLER_FILE', $this->getPluginPath() . '/OjsdefHandler.php');
+        $page    =& $args[0];
+        $handler =& $args[3];
+        if ($this->getEnabled() && $page === 'ojsdef') {
+            $this->_requireClasses();
+            $handler = new OjsdefHandler($this);
             return true;
         }
         return false;

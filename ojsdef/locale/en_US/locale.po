@@ -51,6 +51,12 @@ msgstr "Last Heartbeat"
 msgid "plugins.generic.ojsdef.testConnection"
 msgstr "Test Connection"
 
+msgid "plugins.generic.ojsdef.testConnection.success"
+msgstr "Connection successful. Plugin is connected to OJSDef backend."
+
+msgid "plugins.generic.ojsdef.testConnection.failed"
+msgstr "Connection failed. Please verify the Backend URL and API Key."
+
 msgid "plugins.generic.ojsdef.settings.setup"
 msgstr "Setup Instructions"
 

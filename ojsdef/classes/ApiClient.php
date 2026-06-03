@@ -109,25 +109,54 @@ class ApiClient
     }
 
     /**
-     * @return array{'code': int, 'body': array|null}
+     * @return array{'code': int, 'body': array|null, 'error': string|null}
      */
     private function post(string $endpoint, array $data): array
     {
         $body      = json_encode($data);
         $timestamp = time();
-        $ch        = curl_init($this->backendUrl . $endpoint);
-        curl_setopt_array($ch, [
+        $url       = $this->backendUrl . $endpoint;
+        $ch        = curl_init($url);
+        $caPath    = $this->_getCaPath();
+        $opts      = [
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $body,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 15,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_HTTPHEADER     => $this->makeHeaders($body, $timestamp),
-        ]);
-        $response = curl_exec($ch);
-        $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        ];
+        if ($caPath) $opts[CURLOPT_CAINFO] = $caPath;
+        curl_setopt_array($ch, $opts);
+        $response  = curl_exec($ch);
+        $code      = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        $curlErrno = curl_errno($ch);
         curl_close($ch);
-        return ['code' => (int) $code, 'body' => $response ? json_decode($response, true) : null];
+        if ($curlErrno) {
+            error_log("[OJSDef] POST {$url} — curl #{$curlErrno}: {$curlError}");
+        }
+        return [
+            'code'  => (int) $code,
+            'body'  => $response ? json_decode($response, true) : null,
+            'error' => $curlError ?: null,
+        ];
+    }
+
+    private function _getCaPath(): ?string
+    {
+        static $cache = false;
+        if ($cache !== false) return $cache;
+        foreach ([
+            '/etc/ssl/certs/ca-certificates.crt',
+            '/etc/pki/tls/certs/ca-bundle.crt',
+            '/etc/ssl/cert.pem',
+            '/usr/local/share/certs/ca-root-nss.crt',
+        ] as $p) {
+            if (file_exists($p)) { $cache = $p; return $p; }
+        }
+        $cache = null;
+        return null;
     }
 
     private function _getOjsVersion(): string

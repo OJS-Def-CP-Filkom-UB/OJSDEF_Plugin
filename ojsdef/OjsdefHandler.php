@@ -2,11 +2,19 @@
 
 namespace APP\plugins\generic\ojsdef;
 
-use PKP\handler\Handler;
-use PKP\plugins\PluginRegistry;
+use PKP\controllers\page\PageHandler;
 
-class OjsdefHandler extends Handler
+class OjsdefHandler extends PageHandler
 {
+    /** @var OjsdefPlugin */
+    private $plugin;
+
+    public function __construct($plugin)
+    {
+        parent::__construct();
+        $this->plugin = $plugin;
+    }
+
     /**
      * Endpoint publik probe/trigger — autentikasi sesungguhnya via HMAC,
      * bukan sesi login OJS. Izinkan tanpa role assignment.
@@ -18,11 +26,7 @@ class OjsdefHandler extends Handler
 
     public function probe(array $args, $request): void
     {
-        $plugin = PluginRegistry::getPlugin('generic', 'ojsdef');
-        if (!$plugin) {
-            $this->_json(503, ['error' => 'plugin_inactive']);
-            return;
-        }
+        $plugin = $this->plugin;
         $plugin->_requireClasses();
 
         $body    = (string) file_get_contents('php://input');
@@ -43,11 +47,7 @@ class OjsdefHandler extends Handler
 
     public function trigger(array $args, $request): void
     {
-        $plugin = PluginRegistry::getPlugin('generic', 'ojsdef');
-        if (!$plugin) {
-            $this->_json(503, ['error' => 'plugin_inactive']);
-            return;
-        }
+        $plugin = $this->plugin;
         $plugin->_requireClasses();
 
         $body    = (string) file_get_contents('php://input');
